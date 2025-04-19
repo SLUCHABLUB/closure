@@ -1,28 +1,30 @@
+//! A fork of the [closure](https://crates.io/crates/closure) crate, with more IDE-friendly syntax.
+//! 
+//! # The [`closure`] Macro
+//! 
 //! A macro for capturing variables on a per variable basis.
 //!
-//! With this macro it is possible to specifically designate which variables
-//! will be captured by which method in a designated *capture list*.
-//! Variables can be either specified to be moved, referenced, mutably
-//! referenced or transformed using an arbitrary method identifier (e.g.,
-//! `clone`).
-//! Any variables not specifically designated will be moved by default.
+//! With the [`closure`] macro, it is possible to specify how each variable should be captured.
+//! Variables can be either moved, referenced, mutably referenced or transformed using a method
+//! (e.g. `clone`).
+//! By default, variables will be captured according to what type of underlying closure is used.
+//! To use `move` or "by-method" capturing, a `move` closure is needed.
 //!
-//! The syntax for each type of capture type is:
-//! - `move var` (moves `var` into the closure)
-//! - `ref var` (borrows `var`)
-//! - `ref mut var` (mutably borrows `var`)
-//! - `$IDENT var` (transforms `var` where $IDENT is any identifier for a method
-//! with a `self` receiver and no further arguments)
+//! The syntax for each capture type is as follows:
+//! - `move var` moves `var` into the closure
+//! - `ref var` borrows `var`
+//! - `ref mut var` mutably borrows `var`
+//! - `$IDENT var` transforms `var` where $IDENT is any identifier for a method with receiver and no further arguments
 //!
-//! ## Move Binding
+//! ## Capturing by Value
 //!
-//! To capture a variable by moving it into the closure, use `move` or
-//! `move mut` to create a mutable binding:
+//! To capture a variable by moving it into the closure,
+//! use `move` (or `move mut` to create a mutable binding):
 //!
 //! ```
 //! # use closure::closure;
-//! let first = "first".to_string();
-//! let second = "second".to_string();
+//! let first = "first".to_owned();
+//! let second = "second".to_owned();
 //!
 //! let closure = closure!([move first, move mut second] move || {
 //!     // creates an immutable `first` and a mutable `second`
@@ -33,10 +35,10 @@
 //! });
 //! ```
 //!
-//! ## Reference Binding
+//! ## Capturing by Reference
 //!
-//! To capture a variable by borrowing it in the closure, use `ref` or `ref mut`
-//! for a mutable borrow, respectively.
+//! To capture a variable by borrowing it in the closure,
+//! use `ref` (or `ref mut` for a mutable borrow):
 //!
 //! ```
 //! # use closure::closure;
@@ -50,8 +52,9 @@
 //! # closure();
 //! ```
 //!
-//! Notice, that is also possible to capture named members of a `struct`,
-//! including in `struct` methods:
+//! ## Capturing Paths
+//! 
+//! It is also possible to capture simple paths, such as members or methods of a `struct`:
 //!
 //! ```
 //! # use closure::closure;
@@ -68,18 +71,15 @@
 //! }
 //! ```
 //!
-//! This also applies to `move` captures, but the usual rules for destructuring
-//! apply.
+//! With `move` captures, the usual rules for destructuring apply.
 //!
-//! ## $IDENT-transform Binding
+//! ## Capturing the Result of a Method
 //!
-//! Capturing a variable by an arbitrary identifier of a method with any `self`
-//! reciever (e.g., `self`, `&self`, `&mut self`, etc.) and no other arguments,
-//! creates a binding of the same name but the with the transformation method
-//! applied to the original variable.
-//! The most common use case for this type of capture is probably for calling
-//! `clone()` on a variable, but any method conforming to the aforementioned
-//! rules is also possible, such as `to_string`, `to_owned`, `into_iter`, etc.
+//! Capturing a variable by passing it to a method,
+//! creates a binding of the same name but containing the methods return value.
+//! The most common use case for this type of capture is probably calling [`clone`](Clone::clone) on a variable.
+//! However, as long as the method has a receiver (`self`, `&self`, `&mut self`, &.c.), it can be used.
+//! Examples include: `to_string`, `to_owned` and `into_iter`.
 //!
 //! ```
 //! # use closure::closure;
@@ -98,9 +98,9 @@
 //! println!("the original {} and {} were not moved", first, second);
 //! ```
 //!
-//! # Examples
+//! ## Examples
 //!
-//! ## Spawning a Thread
+//! ### Spawning a Thread
 //!
 //! Instead of having to write:
 //!
@@ -130,8 +130,7 @@
 //! assert_eq!(*vec, &[2, 3, 4, 1]);
 //! ```
 //!
-//! Using `closure!` it becomes possible to avoid having to manually create
-//! bindings for each cloned `Arc`:
+//! Using [`closure`] it is possible to avoid manually creating bindings for each cloned `Arc`:
 //!
 //! ```
 //! use std::thread;
@@ -158,7 +157,7 @@
 //! assert_eq!(*vec, &[2, 3, 4, 1]);
 //! ```
 //!
-//! ## Moving cloned smart pointers into thread closures
+//! ### Moving Cloned Smart Pointers Into Thread Closures
 //!
 //! From the documentation of [`Condvar`][std::sync::Condvar]:
 //!
@@ -186,7 +185,7 @@
 //! }
 //! ```
 //!
-//! With `closure!`, the explicit declaration of `pair2` can be avoided:
+//! With [`closure`], the explicit declaration of `pair2` can be avoided:
 //!
 //! ```
 //! use std::sync::{Arc, Mutex, Condvar};
@@ -196,7 +195,7 @@
 //!
 //! let pair = Arc::new((Mutex::new(false), Condvar::new()));
 //!
-//! // Inside of our lock, spawn a new thread, and then wait for it to start.
+//! // Inside our lock, spawn a new thread, and then wait for it to start.
 //! thread::spawn(closure!([clone pair] move || {
 //!     let &(ref lock, ref cvar) = &*pair;
 //!     let mut started = lock.lock().unwrap();
@@ -213,8 +212,7 @@
 //! }
 //! ```
 //!
-//! ## Mixing move and reference captures without having to specifically declare
-//! the references which should not be moved
+//! ### Using Mixed Capture Modes 
 //!
 //! ```
 //! # use closure::closure;
@@ -223,31 +221,19 @@
 //!
 //! let mut closure = closure!([move move_string, ref mut ref_string] move || {
 //!     ref_string.push_str(&move_string);
-//!     //.. `move_string` is dropped at the end of the scope
+//!     // `move_string` is dropped at the end of the scope
 //! });
 //!
 //! # closure();
 //! # assert_eq!(
 //! #    ref_string,
-//! #    "this string will be borrowedthis string will be moved"
+//! #    concat!("this string will be borrowed", "this string will be moved")
 //! # );
 //! ```
-//!
-//! Variable identifiers in the argument position (i.e., between the vertical
-//! lines) and return type specifications can also be used same as in regular
-//! closures.
-//!
-//! # Limitations
-//!
-//! Any closure passed to the macro will implicitly become a `move` closure, so
-//! even variables that don't appear in the capture list but are used in the
-//! closure itself will also be moved into it.
 
-/// A macro that allows specifying a capture list for a closure that is passed
-/// to the macro.
+/// A macro that allows specifying how variables should be captured.
 ///
-/// See the [crate-level](index.html) docs for further information on syntax and
-/// examples.
+/// See the [crate-level](crate) docs for information on syntax and examples.
 #[macro_export(local_inner_macros)]
 macro_rules! closure {
     (@inner [move $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
