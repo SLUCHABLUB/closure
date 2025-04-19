@@ -24,7 +24,7 @@
 //! let first = "first".to_string();
 //! let second = "second".to_string();
 //!
-//! let closure = closure!(move first, move mut second, || {
+//! let closure = closure!([move first, move mut second] move || {
 //!     // creates an immutable `first` and a mutable `second`
 //!     // binding...
 //!     # assert_eq!(first, "first");
@@ -43,7 +43,7 @@
 //! let mut a = 1;
 //! let b = 0;
 //!
-//! let mut closure = closure!(ref mut a, ref b, || {
+//! let mut closure = closure!([ref mut a, ref b] move || {
 //!     *a = 0;
 //!     assert_eq!(*a, *b);
 //! });
@@ -63,7 +63,7 @@
 //!     fn print(&self) {
 //!         // here a binding `let bar = &self.bar` will be
 //!         // created for the closure
-//!         closure!(ref self.bar, || println!("{}", bar))();
+//!         closure!([ref self.bar] move || println!("{}", bar))();
 //!     }
 //! }
 //! ```
@@ -86,7 +86,7 @@
 //! let first = "first".to_string();
 //! let second = "second".to_string();
 //!
-//! let mut closure = closure!(clone first, clone mut second, || {
+//! let mut closure = closure!([clone first, clone mut second] move || {
 //!     // creates two bindings `first` and `second`,
 //!     // the latter is mutable.
 //!     println!("cloned: {}", first);
@@ -142,7 +142,7 @@
 //! let mutex = Arc::new(Mutex::new(Vec::new()));
 //! let barrier = Arc::new(Barrier::new(2));
 //!
-//! thread::spawn(closure!(clone mutex, clone barrier, || {
+//! thread::spawn(closure!([clone mutex, clone barrier] move || {
 //!     let mut vec = mutex.lock().unwrap();
 //!     vec.push(2);
 //!     vec.push(3);
@@ -197,7 +197,7 @@
 //! let pair = Arc::new((Mutex::new(false), Condvar::new()));
 //!
 //! // Inside of our lock, spawn a new thread, and then wait for it to start.
-//! thread::spawn(closure!(clone pair, || {
+//! thread::spawn(closure!([clone pair] move || {
 //!     let &(ref lock, ref cvar) = &*pair;
 //!     let mut started = lock.lock().unwrap();
 //!     *started = true;
@@ -221,7 +221,7 @@
 //! let move_string = "this string will be moved".to_string();
 //! let mut ref_string = "this string will be borrowed".to_string();
 //!
-//! let mut closure = closure!(move move_string, ref mut ref_string, || {
+//! let mut closure = closure!([move move_string, ref mut ref_string] move || {
 //!     ref_string.push_str(&move_string);
 //!     //.. `move_string` is dropped at the end of the scope
 //! });
@@ -250,41 +250,47 @@
 /// examples.
 #[macro_export(local_inner_macros)]
 macro_rules! closure {
-    (@inner move $($ids:ident).+ , $($tail:tt)*) => {
+    (@inner [move $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
         let $crate::__extract_last_ident!($($ids).+) = $($ids).+;
-        closure!(@inner $($tail)*)
+        closure!(@inner [$($($tail)*)?] $closure)
     };
-    (@inner move mut $($ids:ident).+ , $($tail:tt)*) => {
+    (@inner [move mut $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
         let $crate::__extract_last_ident!(mut $($ids).+) = $($ids).+;
-        closure!(@inner $($tail)*)
+        closure!(@inner [$($($tail)*)?] $closure)
     };
-    (@inner ref $($ids:ident).+ , $($tail:tt)*) => {
+    (@inner [ref $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
         let $crate::__extract_last_ident!($($ids).+) = & $($ids).+;
-        closure!(@inner $($tail)*)
+        closure!(@inner [$($($tail)*)?] $closure)
     };
-    (@inner ref mut $($ids:ident).+ , $($tail:tt)*) => {
+    (@inner [ref mut $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
         let $crate::__extract_last_ident!($($ids).+) = &mut $($ids).+;
-        closure!(@inner $($tail)*)
+        closure!(@inner [$($($tail)*)?] $closure)
     };
-    (@inner $fn:ident $($ids:ident).+ , $($tail:tt)*) => {
+    (@inner [$fn:ident $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
         let $crate::__extract_last_ident!($($ids).+) = $($ids).+.$fn();
-        closure!(@inner $($tail)*)
+        closure!(@inner [$($($tail)*)?] $closure)
     };
-    (@inner $fn:ident mut $($ids:ident).+ , $($tail:tt)*) => {
+    (@inner [$fn:ident mut $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
         let $crate::__extract_last_ident!(mut $($ids).+) = $($ids).+.$fn();
-        closure!(@inner $($tail)*)
+        closure!(@inner [$($($tail)*)?] $closure)
     };
-    (@inner , $($tail:tt)*) => {
-        closure!(@inner $($tail)*)
+    (@inner [] $closure:expr) => {
+        $closure
     };
-    // matches on the actual closure (w/o move)
-    (@inner $($closure:tt)*) => {
-        $crate::__assert_closure!($($closure)*);
-        move $($closure)*
-    };    
-    // macro entry point (accepts anything)
-    ($($args:tt)*) => {{
-        closure! { @inner $($args)* }
+
+    // macro entry points
+    (($($args:tt)*) $closure:expr) => {{
+        closure! { @inner [$($args)*] $closure }
+    }};
+    ([$($args:tt)*] $closure:expr) => {{
+        closure! { @inner [$($args)*] $closure }
+    }};
+    ({$($args:tt)*} $closure:expr) => {{
+        closure! { @inner [$($args)*] $closure }
+    }};
+
+    ($closure:expr) => {{
+        $closure
     }};
 }
 
@@ -295,20 +301,6 @@ macro_rules! __extract_last_ident {
     (mut $last:ident) => { mut $last };
     ($ignore:ident.$($tail:ident).+) => { $crate::__extract_last_ident!($($tail).+) };
     (mut $ignore:ident.$($tail:ident).+) => { $crate::__extract_last_ident!(mut $($tail).+) };
-}
-
-
-#[macro_export(local_inner_macros)]
-#[doc(hidden)]
-macro_rules! __assert_closure {
-    (| $($any:tt)*) => {};
-    (|| $($any:tt)*) => {};
-    (move $($any:tt)*) => { compile_error!("keyword `move` not permitted here") };
-    ($($any:tt)*) => {
-        compile_error!(concat!(
-            "the supplied argument is not a closure: `", stringify!($($any)*), "`")
-        );
-    };
 }
 
 #[cfg(test)]
@@ -330,11 +322,11 @@ mod test {
         }
 
         fn consume(self) -> Box<dyn Fn(i32) -> bool> {
-            Box::new(closure!(move self.bar.baz, |expected| baz == expected))
+            Box::new(closure!([move self.bar.baz] move |expected| baz == expected))
         }
 
         fn borrow(&self) -> Box<dyn Fn(i32) -> bool + '_> {
-            Box::new(closure!(ref self.bar.baz, |expected| *baz == expected))
+            Box::new(closure!([ref self.bar.baz] move |expected| *baz == expected))
         }
     }
 
@@ -371,42 +363,42 @@ mod test {
     #[test]
     fn capture_by_move() {
         let string = "move".to_string();
-        let closure = closure!(move string, || string.len());
+        let closure = closure!([move string] move || string.len());
         assert_eq!(closure(), 4);
     }
 
     #[test]
     fn capture_by_ref() {
         let var = -1;
-        let closure = closure!(ref var, || *var == -1);
+        let closure = closure!([ref var] move || *var == -1);
         assert!(closure());
     }
 
     #[test]
     fn capture_by_ref_mut() {
         let mut var = -1;
-        closure!(ref mut var, || *var *= -1)();
+        closure!([ref mut var] move || *var *= -1)();
         assert_eq!(var, 1);
     }
 
     #[test]
     fn capture_nested_by_move() {
         let foo = Foo::new(-1);
-        let closure = closure!(move foo.bar, || bar == Bar { baz: -1 });
+        let closure = closure!([move foo.bar] move || bar == Bar { baz: -1 });
         assert!(closure());
     }
 
     #[test]
     fn capture_nested_by_ref() {
         let foo = Foo::new(-1);
-        let closure = closure!(ref foo.bar, || *bar == Bar { baz: -1 });
+        let closure = closure!([ref foo.bar] move || *bar == Bar { baz: -1 });
         assert!(closure());
     }
 
     #[test]
     fn capture_nested_by_ref_mut() {
         let mut foo = Foo::new(-1);
-        closure!(ref mut foo.bar.baz, |add| *baz += add)(2);
+        closure!([ref mut foo.bar.baz] move |add| *baz += add)(2);
         assert_eq!(foo.bar.baz, 1);
     }
 
@@ -430,7 +422,7 @@ mod test {
         let mut borrow_mut = 1;
         let string = "move".to_string();
 
-        let closure = closure!(ref borrow, ref mut borrow_mut, move mut string, || {
+        let closure = closure!([ref borrow, ref mut borrow_mut, move mut string] move || {
             assert_eq!(*borrow, 1);
             *borrow_mut -= 1;
             string.push_str("d back");
@@ -445,7 +437,7 @@ mod test {
         use std::rc::Rc;
 
         let rc = Rc::new(Foo::new(0));
-        let closure = closure!(clone rc, |expected| -> bool {
+        let closure = closure!([clone rc] move |expected| -> bool {
             rc.bar.baz == expected && Rc::strong_count(&rc) == 2
         });
         assert!(closure(0));
@@ -454,7 +446,7 @@ mod test {
     #[test]
     fn capture_by_fn_ident() {
         let string = "string";
-        let closure = closure!(to_string string, || {
+        let closure = closure!([to_string string] || {
             let mut owned: String = string;
             owned.push_str(", now owned");
             owned
