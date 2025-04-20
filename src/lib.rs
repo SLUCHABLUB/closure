@@ -1,7 +1,7 @@
 //! A fork of the [closure](https://crates.io/crates/closure) crate, with more IDE-friendly syntax.
-//! 
+//!
 //! # The [`closure`] Macro
-//! 
+//!
 //! A macro for capturing variables on a per variable basis.
 //!
 //! With the [`closure`] macro, it is possible to specify how each variable should be captured.
@@ -53,7 +53,7 @@
 //! ```
 //!
 //! ## Capturing Paths
-//! 
+//!
 //! It is also possible to capture simple paths, such as members or methods of a `struct`:
 //!
 //! ```
@@ -212,7 +212,7 @@
 //! }
 //! ```
 //!
-//! ### Using Mixed Capture Modes 
+//! ### Using Mixed Capture Modes
 //!
 //! ```
 //! # use closure::closure;
@@ -271,7 +271,7 @@ macro_rules! closure {
     ({$($args:tt)*} $closure:expr) => {
         closure!([$($args)*] $closure)
     };
-    
+
     // allow passing no capture list
     ($closure:expr) => { $closure };
 }
