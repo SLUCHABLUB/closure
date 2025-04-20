@@ -236,48 +236,44 @@
 /// See the [crate-level](crate) docs for information on syntax and examples.
 #[macro_export(local_inner_macros)]
 macro_rules! closure {
-    (@inner [move $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
+    ([move $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {{
         let $crate::__extract_last_ident!($($ids).+) = $($ids).+;
-        closure!(@inner [$($($tail)*)?] $closure)
-    };
-    (@inner [move mut $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
+        closure!([$($($tail)*)?] $closure)
+    }};
+    ([move mut $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {{
         let $crate::__extract_last_ident!(mut $($ids).+) = $($ids).+;
-        closure!(@inner [$($($tail)*)?] $closure)
-    };
-    (@inner [ref $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
+        closure!([$($($tail)*)?] $closure)
+    }};
+    ([ref $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {{
         let $crate::__extract_last_ident!($($ids).+) = & $($ids).+;
-        closure!(@inner [$($($tail)*)?] $closure)
-    };
-    (@inner [ref mut $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
+        closure!([$($($tail)*)?] $closure)
+    }};
+    ([ref mut $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {{
         let $crate::__extract_last_ident!($($ids).+) = &mut $($ids).+;
-        closure!(@inner [$($($tail)*)?] $closure)
-    };
-    (@inner [$fn:ident $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
+        closure!([$($($tail)*)?] $closure)
+    }};
+    ([$fn:ident $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {{
         let $crate::__extract_last_ident!($($ids).+) = $($ids).+.$fn();
-        closure!(@inner [$($($tail)*)?] $closure)
-    };
-    (@inner [$fn:ident mut $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {
+        closure!([$($($tail)*)?] $closure)
+    }};
+    ([$fn:ident mut $($ids:ident).+ $(, $($tail:tt)*)?] $closure:expr) => {{
         let $crate::__extract_last_ident!(mut $($ids).+) = $($ids).+.$fn();
-        closure!(@inner [$($($tail)*)?] $closure)
-    };
-    (@inner [] $closure:expr) => {
+        closure!([$($($tail)*)?] $closure)
+    }};
+    ([] $closure:expr) => {
         $closure
     };
 
-    // macro entry points
-    (($($args:tt)*) $closure:expr) => {{
-        closure! { @inner [$($args)*] $closure }
-    }};
-    ([$($args:tt)*] $closure:expr) => {{
-        closure! { @inner [$($args)*] $closure }
-    }};
-    ({$($args:tt)*} $closure:expr) => {{
-        closure! { @inner [$($args)*] $closure }
-    }};
-
-    ($closure:expr) => {{
-        $closure
-    }};
+    // allow other types of brackets
+    (($($args:tt)*) $closure:expr) => {
+        closure!([$($args)*] $closure)
+    };
+    ({$($args:tt)*} $closure:expr) => {
+        closure!([$($args)*] $closure)
+    };
+    
+    // allow passing no capture list
+    ($closure:expr) => { $closure };
 }
 
 #[macro_export(local_inner_macros)]
